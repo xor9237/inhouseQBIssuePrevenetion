@@ -69,7 +69,7 @@ and "lostAndHiddenFromMaps" = false
 order by 3 asc
 )
 
--- Vehicles with LB tasks created in last 3000 minutes (since task expires in 3000 minutes) and still open (status = 0)
+-- Vehicles with LB tasks created in last - minutes (since task expires in - minutes) and still open (status = -)
 , "lbtask" as (
 select "vehicleId" 
 from "Tasks" 
