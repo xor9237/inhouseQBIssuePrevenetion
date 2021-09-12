@@ -1,0 +1,119 @@
+with "low_bat" as 
+(SELECT 
+    random() as "rand_num_generator"
+    , concat(v."id", date_trunc('hour', now()),'1_') as "id"
+    , "code"
+    , "estimatedBattery"
+    , (select "name" from "GeoRegions" where "id" = "cityId") as "City"
+    , (select "name" from "GeoRegions" where "id" = "geofenceId") as "Geofence"
+    , 3000 as "expiryTime(min)"
+    , case --when v."id" in (select "vehicleId" from "24h") then 
+        when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+        when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+        when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+        when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+        when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+    end as "priority"
+    , case  when v."cityId" in ( ) and v."estimatedBattery" >  and v."estimatedBattery" <= then 
+            when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+            when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+            when v."cityId" in ( ) and v."estimatedBattery" <=  and "estimatedBattery" >  then 
+            when v."cityId" in ( ) and v."estimatedBattery" <=  then 
+            --when v."citid" in (select "vehicleId" from "24h") then 
+     end as "points"
+    , 'South Korea' as "georegion"
+    , "cityId"
+    , v."id" as "vehicleId"
+    , ST_X("bestLocation")
+    , ST_Y("bestLocation")
+    , "vehicleModel"
+    , "estimatedBattery"
+    , "lastCollectedTime"
+    , "lastRideStartTime"
+    , "lastConnectedTimestamp"
+    , "undeployableDamaged"
+    , "bestLocation"
+FROM "Vehicles" v
+WHERE v."cityId" in (select "id" from "GeoRegions" where "parentRegionId" = )
+--and v."geofenceId" not in ( ) -- added for Inhouse QB
+and "vehicleModel" not in ('NINEBOT_MODEL_MAX', 'NINEBOT_ES')
+-- and ("vehicleModel" = 'NINEBOT_MODEL_MAX_SWAPPABLE' or "vehicleModel" = 'NINEBOT_MODEL_MAX_PLUS')
+-- and (select "name" from "GeoRegions" where "id" = v."cityId") not in ('Busan')
+AND "lostAndHiddenFromMaps" = false
+AND v."status" = 
+and ( v."cityId" in ( ) and v."estimatedBattery" <= )
+or (v."cityId" in ( ) and v."estimatedBattery" <= )
+or (v."cityId" in ( ) and v."estimatedBattery" <= )
+or (v."cityId" in ( ) and v."estimatedBattery" <= 16 and "estimatedBattery" > )
+or (v."cityId" in ( ) and v."estimatedBattery" >  and v."estimatedBattery" <= )
+order by 1 asc
+)
+
+
+, "master" as (
+-- vehicles that supposed to have tasks
+with "vehicle" as (
+select "id"
+, "code"
+, "batteryUpdated"
+, "status"
+, "lastReportedBattery"
+, (select gr."name" from "GeoRegions" gr where gr."id" = v."cityId") as "city"
+from "Vehicles" v 
+where (("lastReportedBattery" <  and "cityId" = ) 
+or ("lastReportedBattery" <  and "cityId" in  ( )) 
+or ("lastReportedBattery" <  and "cityId" = ))
+and "status" in ( )
+and "undeployableDamaged" = false
+and "lostAndHiddenFromMaps" = false
+order by 3 asc
+)
+
+-- Vehicles with LB tasks created in last 3000 minutes (since task expires in 3000 minutes) and still open (status = 0)
+, "lbtask" as (
+select "vehicleId" 
+from "Tasks" 
+where "queryName" = 'LOW_BATTERY_SWAPPABLE'
+and "priority" != ' ' 
+and "createdAt" > now() - ' ' ::interval 
+and "cityId" in ( )
+and "status" = 
+order by "createdAt" desc
+)
+
+--vehicles with tasks
+, "w/lbtask" as (
+select v."id"
+, v."code"
+from "vehicle" v 
+join "lbtask" t on t."vehicleId" = v."id"
+)
+
+-- status:
+-- 0: task created
+-- 1: no task and last battery updated date is within last 24 hours
+-- 2: no task and last battery updated date past last 24 hours
+-- 3: else
+select v."id" 
+, v."code"
+, timezone('kst', v."batteryUpdated") as "batteryUpdated"
+, v."lastReportedBattery"
+, v."city"
+, case when v."id" in (select "id" from "w/lbtask")
+        then '0' 
+        when v."id" not in (select "id" from "w/lbtask") and (v."batteryUpdated" > now() - '1 day' ::interval)
+        then '1'
+        when v."id" not in (select "id" from "w/lbtask") and (v."batteryUpdated" < now() - '1 day' ::interval)
+        then '2'
+        else '3'
+    end as "status"
+from "vehicle" v
+order by 6 desc
+)
+
+
+SELECT * 
+FROM "low_bat"
+where "low_bat"."vehicleId" in (select "master"."id" from "master" where "status" != '0') 
+
+limit 300
